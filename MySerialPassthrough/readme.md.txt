@@ -1,0 +1,1 @@
+Copies the GPS (SoftwareSerial pins 8,7) to USB serial (Serial) and also XTend serial (Serial1, hardware serial pins 0,1)
