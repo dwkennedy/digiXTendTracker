@@ -4,8 +4,9 @@
 
 
   // utility functions to parse and check hexadecimal checksum
-  uint8_t parseHex(char c);
-  boolean calculateChecksum(char *nmea, uint8_t length);
   boolean verifyChecksum(char *nmea);
+  uint8_t parseHex(char c);
+  uint8_t calculateChecksum(char *nmea, uint8_t length);
+ 
 
 #endif

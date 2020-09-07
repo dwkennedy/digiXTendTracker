@@ -1,5 +1,7 @@
 #include "GPS_NMEA.h"
 
+const char badChecksumMessage[] PROGMEM = {"Bad GPS NMEA checksum!"};
+
 
 GPS_NMEA::GPS_NMEA(void) {
 }
@@ -10,7 +12,7 @@ boolean GPS_NMEA::parseNMEA(char *nmea) {
   
   if (!verifyChecksum(nmea)) {
      // bad checksum :(
-     Serial.println("Bad GPS NMEA checksum!");
+     Serial.println(badChecksumMessage);
      return false;
   }
   
@@ -204,5 +206,3 @@ Where:
   // not a NMEA sentence we recognize (not GGA or RMC)
   return false;
 }
-
-

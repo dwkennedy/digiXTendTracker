@@ -50,7 +50,7 @@ class NMEA_serial {
   // set up the double-buffer pointers, reset received flag
   void common_init(void);
   // pipe a command to the channel (radio or GPS mode changing option)
-  void sendCommand(char *);
+  void sendCommand(const char *);
   // read a byte waiting at the serial port
   char read(void);
   //  not defined in the library? don't know what interruptReads is about
@@ -86,4 +86,3 @@ class NMEA_serial {
 
 
 #endif
-

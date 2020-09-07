@@ -137,7 +137,7 @@ void NMEA_serial::begin(uint16_t baud)
   delay(10);
 }
 
-void NMEA_serial::sendCommand(char *str) {
+void NMEA_serial::sendCommand(const char str[]) {
 #ifdef __AVR__
   if(gpsSwSerial) 
     gpsSwSerial->println(str);
@@ -178,4 +178,3 @@ boolean NMEA_serial::waitForSentence(char *wait4me, uint8_t max) {
 
   return false;
 }
-

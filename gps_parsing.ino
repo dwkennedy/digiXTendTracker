@@ -1,5 +1,5 @@
 
-// GPS telemetry and SD recording with the digi XTend 900 MHz data radio
+// GPS telemetry and SD recording with the digi XTend 915 MHz data radio
 //
 //  Record GPS & other data on SD card
 //  Transmit reduced GPS and other data to ground
@@ -13,22 +13,21 @@
 
 // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 // Set to 'true' if you want to debug and listen to the raw GPS sentences
-#define GPSECHO  false
-//#define GPSECHO true
+//#define GPSECHO  false
+#define GPSECHO true
 
 // Set XTENDECHO to 'false' to turn off echoing the commands received from the ground station.
 // Set to 'true' if you want to debug and listen to the commands
-#define XTENDECHO false
-//#define XTENDECHO true
+//#define XTENDECHO false
+#define XTENDECHO true
 
 // unique letter id, A-Z/0-9 identifying tracker, along with our proprietary NMEA-like data type
 
-#define UNIT_ID "$PTRK,D,"
+#define UNIT_ID "$PTRK,F,"
 
 #include <SoftwareSerial.h>
 #include <SPI.h>
 #include <SD.h>
-//#include "SD.h"
 #include <avr/sleep.h>
 #include "NMEA_serial.h"
 #include "GPS_NMEA.h"
@@ -43,6 +42,8 @@
 //
 //   Connect the optical RX (receive) pin to Digital 9
 
+
+// set up serial port for GPS, set up to read one sentence at a time (NMEA_serial)
 SoftwareSerial gpsSerial(8, 7);
 NMEA_serial gpsNMEA(&gpsSerial);
 GPS_NMEA GPS;
@@ -71,6 +72,10 @@ const int gpsPPS = 2; // pulse per second, only when valid fix
 const int ledPin = 13; // blinky error light
 const int chipSelect = 10; // SD card SPI chip select
 
+const char initMessage[] PROGMEM = {"DOUG TRACKER V1.1"};
+const char PMTK_SET_NMEA_OUTPUT_RMCGGA[] PROGMEM = {"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"};
+const char PMTK_SET_NMEA_UPDATE_1HZ[] PROGMEM = {"$PMTK220,1000*1F"};
+
 boolean blink = false;  // blinky light
 boolean pulseDetected = false;  // semaphone for ISR
 boolean cutdownOn = false;  // semaphone for cutter
@@ -98,8 +103,8 @@ void setup()
   // set up Arduino Leo USB serial for debugging output
   Serial.begin(115200);
   delay(5000);
-  Serial.println("NSSL/FOFS TRACKER V1.0\n");
-
+  Serial.println(initMessage);
+  
   // initialize XTend shutdown pin
   pinMode(shutdownPin, OUTPUT);
   //digitalWrite(shutdownPin, HIGH);
@@ -110,8 +115,8 @@ void setup()
   digitalWrite(chipSelect, HIGH);
   // see if the card is present and can be initialized:
   Serial.println("before SD.begin");
-  if (!SD.begin(chipSelect, 11, 12, 13)) {
-  //if (!SD.begin(chipSelect)) {      // if you're using an UNO or some such newfangled device, you can use this line instead
+  //if (!SD.begin(chipSelect, 11, 12, 13)) {
+  if (!SD.begin(chipSelect)) {      // if you're using an UNO or some such newfangled device, you can use this line instead
     Serial.println("Card init. failed!");
     //error(2);
   }
@@ -131,16 +136,14 @@ void setup()
     }
   }
 
-  Serial.print("Opening ");
+  Serial.print(F("Opening "));
   Serial.println(filename);
   logfile = SD.open(filename, FILE_WRITE);
   if( ! logfile ) {
-    Serial.print("Couldn't create "); Serial.println(filename);
+    Serial.print(F("Couldn't create ")); Serial.println(filename);
     //error(3);
   }
-  Serial.print("Writing to "); Serial.println(filename);
-  
-  
+  Serial.print(F("Writing to ")); Serial.println(filename);
   
   // 9600 NMEA is the default baud rate for Adafruit MTK GPS
   gpsNMEA.begin(9600);
@@ -160,23 +163,31 @@ void setup()
   // Request updates on antenna status, comment out to keep quiet
   //gpsNMEA.sendCommand(PGCMD_ANTENNA);
 
-  Serial.println("GPS initialized...");
+  Serial.println(F("GPS initialized..."));
   
   // initialize Xtend radio here (deassert shutdown pin, set power level, RF settings, etc)
   // change these to xtendNMEA commands instead
   //xtendNMEA.begin(9600);
   Serial1.begin(9600);
-  Serial1.println("HELLO");
-  Serial.println("after serial.begin(9600)...");
+  Serial1.println(F("HELLO"));
+  Serial.println(F("Send hello to rxvr..."));
   // deassert shutdown pin to turn on radio
   //pinMode(shutdownPin, OUTPUT);
   digitalWrite(shutdownPin, HIGH);
   //digitalWrite(shutdownPin, LOW);
   delay(2250);  // wait for radio to wake up + BT guard time
-  Serial.println("sending +++ to XTend...");
-  xtendNMEA.sendCommand("+++");
-  delay(1250);  // AT guard time after
-  Serial.println("entered command mode");
+  Serial.println(F("sending +++ to XTend..."));
+  Serial1.print(F("+++"));
+  //xtendNMEA.sendCommand("+++");
+  readTimeout(1250);
+  Serial1.print(F("+++"));
+  //xtendNMEA.sendCommand("+++");
+  readTimeout(1250);
+  Serial1.print(F("+++"));
+  //xtendNMEA.sendCommand("+++");
+  readTimeout(1250);
+  //delay(1250);  // AT guard time after
+  Serial.println(F("entered command mode"));
 
   // *******************************************************
   //    really need to read OK response, and repeat command several times,
@@ -191,22 +202,36 @@ void setup()
   //
   // but for now we just send these strings and hope for the best :/
   
-  Serial1.print("ATPL1\r"); // set 10mw power
+  Serial.print(F("sending ATPL4\r\n")); // set 10mw power
+  //Serial1.print(F("ATPL1\r")); // set 10mw power
+  Serial1.print(F("ATPL4\r")); // set 1000mw power
   // 4 = 1w, 3=500mw, 2=100mw, 1=10mw, 0=1mw
-  delay(100);  // wait for "OK"
 
-  Serial1.print("ATBR0\r"); // set 9600 baud RF data rate
-  delay(100);
+  readTimeout(2000);
+  // delay(1000);  // wait for "OK"
+
+  Serial.print(F("sending ATBR0\r\n")); // set 9600 baud RF data rate
+  Serial1.print(F("ATBR0\r")); // set 9600 baud RF data rate
+
+  readTimeout(2000);
+  //delay(1000);
   
-  Serial1.print("ATSM7\r");  // 8 second cyclic sleep mode
-  delay(100);
+  Serial.print(F("sending ATSM7\r\n"));  // 8 second cyclic sleep mode
+  Serial1.print(F("ATSM7\r"));  // 8 second cyclic sleep mode
+  //delay(1000);
+  readTimeout(2000);
   
-  Serial1.print("ATST30\r");  // sleep after 30*100ms = 3 seconds of idle
-  delay(100);
+  Serial.print(F("sending ATST30\r\n"));  // sleep after 30*100ms = 3 seconds of idle
+  Serial1.print(F("ATST30\r"));  // sleep after 30*100ms = 3 seconds of idle
+  readTimeout(2000);
+  //delay(1000);
   
-  Serial1.print("ATCN\r");  // exit command mode
+  Serial.print(F("sending ATCN\r\n"));  // exit command mode
+  Serial1.print(F("ATCN\r"));  // exit command mode
+  readTimeout(2000);
+  //delay(1000);
   
-  Serial.println("XTend initialized...");
+  Serial.println(F("XTend initialized..."));
   
   // delay(1000);
   // Ask GPS for firmware version
@@ -264,7 +289,7 @@ void loop()                     // run over and over again
     if (!GPS.parseNMEA(gpsNMEA.lastNMEA())) {   // this also sets the newNMEAreceived() flag to false
       errorCount++;
       if (DEBUG) {
-        Serial.print("Chksum error: ");
+        Serial.print(F("Chksum error: "));
         Serial.println(errorCount);
       }
       return;  // we can fail to parse a sentence in which case we should just wait for another
@@ -375,7 +400,7 @@ blank field,
     strcat(outputBuffer, GPS.satellites);
     strcat(outputBuffer, ",");
     strcat(outputBuffer, batteryVoltageString);
-    strcat(outputBuffer, ",0,0,0,");
+    //strcat(outputBuffer, ",0,0,0");
     
     uint16_t cksum = 0x100 + calculateChecksum(outputBuffer,strlen(outputBuffer));
     utoa(cksum, checksumString, 16);
@@ -400,7 +425,7 @@ blank field,
     //if (radioTimer > millis())  radioTimer = millis();
 
     // approximately every 10 seconds or so, print out the current stats and flush
-    if (millis() - radioTimer > 10000) { 
+    if (millis() - radioTimer > 100) { 
       radioTimer = millis(); // reset the timer
       //digitalWrite(shutdownPin, HIGH); // turn on radio
       Serial1.println(outputBuffer);
@@ -439,5 +464,14 @@ void error(uint8_t errno) {
   //}
 }
 
+void readTimeout(unsigned long timeout) {
+  unsigned long foo;
 
-
+  foo=millis();
+  while ((millis()-foo)<timeout) {
+    if(Serial1.available()) {
+      Serial.write(Serial1.read());
+    }
+  }
+  Serial.write("\r\n");
+}
